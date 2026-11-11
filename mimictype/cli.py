@@ -47,7 +47,7 @@ def main():
         "--error-rate",
         type=float,
         default=None,
-        help="Typo error probability (e.g. 0.02 for 2%).",
+        help="Typo error probability (e.g. 0.02 for 2%%).",
     )
     parser.add_argument(
         "-c",
