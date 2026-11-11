@@ -46,7 +46,7 @@
 
 ### Быстрый старт
 ```bash
-git clone https://github.com/[your-username]/mimictype.git
+git clone https://github.com/BlaWhi3929BD/mimictype.git
 cd mimictype
 pip install -e .
 ```
