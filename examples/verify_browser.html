@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MimicType DOM Event & Keystroke Dynamics Verifier</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 24px;
+      background: #0f172a;
+      color: #f8fafc;
+    }
+    h1 { margin-bottom: 8px; color: #38bdf8; }
+    p { color: #94a3b8; font-size: 14px; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      background: #1e293b;
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+    }
+    .stat-val {
+      font-size: 28px;
+      font-weight: bold;
+      color: #38bdf8;
+    }
+    .stat-val.trusted { color: #4ade80; }
+    .stat-val.untrusted { color: #f87171; }
+    .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; margin-top: 4px; }
+    
+    #testInput {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 16px;
+      font-size: 18px;
+      background: #1e293b;
+      border: 2px solid #38bdf8;
+      border-radius: 8px;
+      color: #f8fafc;
+      outline: none;
+      margin-bottom: 20px;
+    }
+    #testInput:focus {
+      border-color: #60a5fa;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #1e293b;
+      border-radius: 8px;
+      overflow: hidden;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid #334155;
+    }
+    th { background: #0b1329; color: #94a3b8; font-weight: 600; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-true { background: rgba(74, 222, 128, 0.15); color: #4ade80; border: 1px solid #4ade80; }
+    .badge-false { background: rgba(248, 113, 113, 0.15); color: #f87171; border: 1px solid #f87171; }
+  </style>
+</head>
+<body>
+  <h1>MimicType Verification Console</h1>
+  <p>Focus the input box below and trigger <code>mimictype</code> to inspect incoming kernel hardware events.</p>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div id="trustedRate" class="stat-val trusted">100%</div>
+      <div class="stat-label">isTrusted Ratio</div>
+    </div>
+    <div class="stat-card">
+      <div id="avgDwell" class="stat-val">0 ms</div>
+      <div class="stat-label">Avg Dwell Time</div>
+    </div>
+    <div class="stat-card">
+      <div id="avgFlight" class="stat-val">0 ms</div>
+      <div class="stat-label">Avg Flight Time</div>
+    </div>
+    <div class="stat-card">
+      <div id="keyCount" class="stat-val">0</div>
+      <div class="stat-label">Keystrokes Captured</div>
+    </div>
+  </div>
+
+  <input id="testInput" type="text" placeholder="Click here to focus and test typing..." autofocus autocomplete="off" />
+
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Key</th>
+        <th>Code</th>
+        <th>isTrusted</th>
+        <th>Dwell</th>
+        <th>Flight</th>
+        <th>Timestamp</th>
+      </tr>
+    </thead>
+    <tbody id="logBody"></tbody>
+  </table>
+
+  <script>
+    const input = document.getElementById('testInput');
+    const logBody = document.getElementById('logBody');
+    const trustedRateEl = document.getElementById('trustedRate');
+    const avgDwellEl = document.getElementById('avgDwell');
+    const avgFlightEl = document.getElementById('avgFlight');
+    const keyCountEl = document.getElementById('keyCount');
+
+    let pressTimes = {};
+    let lastKeyUpTime = null;
+    let dwellTimes = [];
+    let flightTimes = [];
+    let trustedCount = 0;
+    let totalKeys = 0;
+
+    input.addEventListener('keydown', (e) => {
+      const now = performance.now();
+      if (!pressTimes[e.code]) {
+        pressTimes[e.code] = now;
+      }
+      let flight = lastKeyUpTime ? (now - lastKeyUpTime).toFixed(1) + ' ms' : '-';
+      if (lastKeyUpTime) flightTimes.push(now - lastKeyUpTime);
+
+      totalKeys++;
+      if (e.isTrusted) trustedCount++;
+      updateStats();
+
+      addLogRow('keydown', e.key, e.code, e.isTrusted, '-', flight, now.toFixed(0));
+    });
+
+    input.addEventListener('keyup', (e) => {
+      const now = performance.now();
+      let dwell = '-';
+      if (pressTimes[e.code]) {
+        const d = now - pressTimes[e.code];
+        dwellTimes.push(d);
+        dwell = d.toFixed(1) + ' ms';
+        delete pressTimes[e.code];
+      }
+      lastKeyUpTime = now;
+      updateStats();
+
+      addLogRow('keyup', e.key, e.code, e.isTrusted, dwell, '-', now.toFixed(0));
+    });
+
+    function updateStats() {
+      const ratio = totalKeys > 0 ? ((trustedCount / totalKeys) * 100).toFixed(0) : 100;
+      trustedRateEl.textContent = ratio + '%';
+      trustedRateEl.className = 'stat-val ' + (ratio === '100' ? 'trusted' : 'untrusted');
+
+      if (dwellTimes.length > 0) {
+        const avgD = dwellTimes.reduce((a,b)=>a+b,0) / dwellTimes.length;
+        avgDwellEl.textContent = avgD.toFixed(0) + ' ms';
+      }
+      if (flightTimes.length > 0) {
+        const avgF = flightTimes.reduce((a,b)=>a+b,0) / flightTimes.length;
+        avgFlightEl.textContent = avgF.toFixed(0) + ' ms';
+      }
+      keyCountEl.textContent = totalKeys;
+    }
+
+    function addLogRow(type, key, code, isTrusted, dwell, flight, ts) {
+      const tr = document.createElement('tr');
+      const badgeClass = isTrusted ? 'badge-true' : 'badge-false';
+      tr.innerHTML = `
+        <td>${type}</td>
+        <td><strong>${key === ' ' ? '[Space]' : key}</strong></td>
+        <td><code>${code}</code></td>
+        <td><span class="badge ${badgeClass}">${isTrusted}</span></td>
+        <td>${dwell}</td>
+        <td>${flight}</td>
+        <td>${ts}</td>
+      `;
+      logBody.insertBefore(tr, logBody.firstChild);
+      if (logBody.children.length > 50) {
+        logBody.removeChild(logBody.lastChild);
+      }
+    }
+  </script>
+</body>
+</html>
