@@ -1,0 +1,50 @@
+# Конфигурация по умолчанию для MimicType
+
+# Скорость набора (Words Per Minute)
+wpm: 65
+
+# Настройки времени удержания клавиши (Dwell Time) в секундах
+dwell:
+  mu: 4.31         # Медиана ~74 мс (exp(4.31) / 1000)
+  sigma: 0.20
+  min_seconds: 0.045
+  max_seconds: 0.145
+
+# Настройки времени перехода между клавишами (Flight Time)
+flight:
+  jitter_ratio: 0.15
+  double_tap_multiplier_range: [1.3, 1.8]
+  same_finger_multiplier_range: [1.3, 1.7]
+  opposite_hand_multiplier_range: [0.65, 0.90]
+  same_hand_multiplier_range: [0.95, 1.30]
+
+# Когнитивные паузы (в секундах)
+pauses:
+  sentence_boundary: [0.35, 0.75]   # Перед . ! ?
+  clause_boundary: [0.18, 0.38]     # Перед , ; :
+  newline: [0.40, 1.10]             # Перед \n
+  code_block: [0.30, 0.60]          # Перед { } def class if return
+
+# Симуляция человеческих опечаток
+humanizer:
+  enabled: true
+  error_rate: 0.02                  # 2% вероятность опечатки на символ
+  transposition_rate: 0.15          # 15% от опечаток - перестановка двух соседних букв
+  inertia_range: [0, 2]             # Сколько символов печатается до осознания ошибки
+  perception_delay: [0.22, 0.45]    # Пауза осознания ошибки (сек)
+  backspace_dwell: 0.045            # Время нажатия Backspace (сек)
+  backspace_flight: 0.065           # Интервал между Backspace (сек)
+  recovery_delay: [0.12, 0.25]      # Пауза перед продолжением набора (сек)
+
+# Устройство ввода (uinput)
+device:
+  name: "Logitech USB Keyboard"
+  vendor_id: 0x046d
+  product_id: 0xc31c
+  version: 0x0111
+
+# Раскладки клавиатуры
+layout:
+  default_layout: "us"              # "us" или "ru"
+  switch_key_combination: ["KEY_LEFTALT", "KEY_LEFTSHIFT"]
+  switch_settle_delay: 0.060        # Задержка после смены раскладки (сек)
