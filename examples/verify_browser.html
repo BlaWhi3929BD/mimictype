@@ -648,10 +648,19 @@ Special tokens: { "user_id": 42, "status": "SUCCESS", "ratio": 99.8% };
     window.addEventListener('keydown', handleKeyDown, true);
     window.addEventListener('keyup', handleKeyUp, true);
 
+    const MODIFIER_CODES = new Set([
+      'ShiftLeft', 'ShiftRight', 'AltLeft', 'AltRight',
+      'ControlLeft', 'ControlRight', 'MetaLeft', 'MetaRight', 'CapsLock'
+    ]);
+
     function handleKeyDown(e) {
       if (!isCapturing) return;
       const now = performance.now();
-      if (!typingStartTime) typingStartTime = now;
+
+      // If idle for more than 2.5s before active typing, reset start time for accurate WPM
+      if (!typingStartTime || (dwellTimes.length < 3 && lastKeyUpTime && (now - lastKeyUpTime > 2500))) {
+        typingStartTime = now;
+      }
 
       if (!pressTimes[e.code]) {
         pressTimes[e.code] = now;
@@ -660,7 +669,10 @@ Special tokens: { "user_id": 42, "status": "SUCCESS", "ratio": 99.8% };
       let flightMs = null;
       if (lastKeyUpTime !== null) {
         flightMs = now - lastKeyUpTime;
-        flightTimes.push(flightMs);
+        // Exclude modifiers and idle gaps (> 2500ms) from flight averages
+        if (!MODIFIER_CODES.has(e.code) && flightMs < 2500) {
+          flightTimes.push(flightMs);
+        }
       }
 
       totalEvents++;
@@ -703,10 +715,17 @@ Special tokens: { "user_id": 42, "status": "SUCCESS", "ratio": 99.8% };
       let dwellMs = null;
       if (pressTimes[e.code]) {
         dwellMs = now - pressTimes[e.code];
-        dwellTimes.push(dwellMs);
+        // Only track real character dwell times (ignore multi-second Alt-Tab holds or modifiers)
+        if (!MODIFIER_CODES.has(e.code) && dwellMs < 2000) {
+          dwellTimes.push(dwellMs);
+        }
         delete pressTimes[e.code];
       }
-      lastKeyUpTime = now;
+
+      // Update lastKeyUpTime for non-modifiers to track true inter-key flight
+      if (!MODIFIER_CODES.has(e.code)) {
+        lastKeyUpTime = now;
+      }
 
       totalEvents++;
       if (e.isTrusted) trustedEvents++;
@@ -793,7 +812,7 @@ Special tokens: { "user_id": 42, "status": "SUCCESS", "ratio": 99.8% };
           const wordsTyped = (dwellTimes.length / 5);
           const currentWpm = Math.round(wordsTyped / elapsedMinutes);
           liveWpmEl.textContent = currentWpm;
-          if (currentWpm > peakWpm && currentWpm < 300) peakWpm = currentWpm;
+          if (currentWpm > peakWpm && currentWpm < 1200) peakWpm = currentWpm;
           wpmSub.textContent = `Пик: ${peakWpm} WPM`;
         }
       }

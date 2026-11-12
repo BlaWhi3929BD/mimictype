@@ -6,7 +6,7 @@ from mimictype.core.topology import KeyboardTopology
 
 
 class DynamicsEngine:
-    """Computes realistic human keystroke intervals (Dwell & Flight Times)."""
+    """Computes realistic keystroke intervals (Dwell & Flight Times) dynamically calibrated to target WPM."""
 
     def __init__(
         self,
@@ -15,32 +15,41 @@ class DynamicsEngine:
     ):
         self.config = config
         self.topology = topology or KeyboardTopology()
-        # Words Per Minute to base character flight time conversion:
-        # Standard assumption: 1 word = 5 characters.
-        # Characters per minute = wpm * 5. Total time per char = 60 / (wpm * 5).
-        # We divide that roughly into dwell (~40%) and flight (~60%).
-        char_period = 60.0 / max(10, self.config.wpm * 5)
-        self.base_flight = char_period * 0.60
+
+        # Words Per Minute to base character period:
+        # Standard: 1 word = 5 characters.
+        # Total time budget per character = 60.0 / (wpm * 5)
+        wpm = max(10, self.config.wpm)
+        self.char_period = 60.0 / (wpm * 5.0)
+
+        # Division of character budget: ~38% dwell, ~62% flight
+        self.target_dwell = self.char_period * 0.38
+        self.base_flight = self.char_period * 0.62
+
+        # Lognormal parameters centered on target dwell
+        target_dwell_ms = self.target_dwell * 1000.0
+        self.dwell_mu = math.log(max(1.0, target_dwell_ms))
+        self.dwell_sigma = self.config.dwell.sigma
+        self.min_dwell = max(0.004, self.target_dwell * 0.35)
+        self.max_dwell = max(self.min_dwell * 1.5, self.target_dwell * 1.85)
+
+        # Cognitive pause scaling: at high WPM, pauses scale down
+        # At 65 WPM: scale = 1.0; at 333 WPM: scale ~ 0.17
+        self.pause_scale = min(1.0, (65.0 / wpm) ** 1.15)
 
     def compute_dwell_time(self, char: str) -> float:
         """
         Lognormal distribution for key press duration (Dwell Time).
-        ln(T) ~ N(mu, sigma^2).
+        ln(T) ~ N(mu, sigma^2), dynamically scaled to target WPM.
         """
-        mu = self.config.dwell.mu
-        sigma = self.config.dwell.sigma
-        # Sample lognormal distribution in ms
-        dwell_ms = math.exp(random.gauss(mu, sigma))
+        dwell_ms = math.exp(random.gauss(self.dwell_mu, self.dwell_sigma))
         dwell_sec = dwell_ms / 1000.0
 
-        # Spacebar / Enter often have slightly longer dwell
+        # Spacebar / Enter have slightly longer dwell
         if char in (" ", "\n"):
-            dwell_sec *= random.uniform(1.1, 1.3)
+            dwell_sec *= random.uniform(1.08, 1.22)
 
-        return max(
-            self.config.dwell.min_seconds,
-            min(self.config.dwell.max_seconds, dwell_sec),
-        )
+        return max(self.min_dwell, min(self.max_dwell, dwell_sec))
 
     def compute_flight_time(
         self, prev_char: Optional[str], curr_char: str
@@ -54,7 +63,7 @@ class DynamicsEngine:
         - Spatial physical distance
         """
         if not prev_char:
-            return random.uniform(0.08, 0.18)
+            return max(0.010, self.base_flight * random.uniform(0.9, 1.4))
 
         cfg_flight = self.config.flight
 
@@ -75,8 +84,7 @@ class DynamicsEngine:
             # Same hand, different fingers
             min_m, max_m = cfg_flight.same_hand_multiplier_range
             dist = self.topology.get_distance(prev_char, curr_char)
-            # Slight scaling with distance
-            dist_factor = 0.85 + (dist * 0.10)
+            dist_factor = 0.88 + (dist * 0.08)
             multiplier = random.uniform(min_m, max_m) * dist_factor
 
         flight_sec = self.base_flight * multiplier
@@ -84,33 +92,41 @@ class DynamicsEngine:
         jitter = random.gauss(0, flight_sec * cfg_flight.jitter_ratio)
         flight_sec += jitter
 
-        return max(0.025, flight_sec)
+        min_flight = max(0.003, self.base_flight * 0.25)
+        return max(min_flight, flight_sec)
 
     def compute_cognitive_pause(
         self, prev_char: Optional[str], curr_char: str, peek_ahead: str = ""
     ) -> float:
         """
         Calculates context-sensitive pauses before punctuation, newlines, and code constructs.
+        Scaled proportionally to target WPM.
         """
         pauses = self.config.pauses
+
+        # If WPM is extremely high (>250), eliminate cognitive pauses to prioritize raw speed
+        if self.config.wpm >= 280:
+            scale = self.pause_scale * 0.4
+        else:
+            scale = self.pause_scale
 
         # Sentence endings
         if curr_char in (".", "!", "?") and (
             not peek_ahead or peek_ahead[0] in (" ", "\n")
         ):
-            return random.uniform(*pauses.sentence_boundary)
+            return random.uniform(*pauses.sentence_boundary) * scale
 
         # Clauses
         if curr_char in (",", ";", ":"):
-            return random.uniform(*pauses.clause_boundary)
+            return random.uniform(*pauses.clause_boundary) * scale
 
         # Newline
         if curr_char == "\n":
-            return random.uniform(*pauses.newline)
+            return random.uniform(*pauses.newline) * scale
 
         # Structural code tokens: check if we are starting a known keyword or block
         if curr_char in ("{", "}"):
-            return random.uniform(*pauses.code_block)
+            return random.uniform(*pauses.code_block) * scale
 
         code_keywords = (
             "def ",
@@ -125,6 +141,6 @@ class DynamicsEngine:
             peek_ahead.startswith(kw) or (curr_char + peek_ahead).startswith(kw)
             for kw in code_keywords
         ):
-            return random.uniform(*pauses.code_block)
+            return random.uniform(*pauses.code_block) * scale
 
         return 0.0

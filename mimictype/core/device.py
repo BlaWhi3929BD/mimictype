@@ -119,22 +119,24 @@ class UInputDevice:
         code: int,
         dwell_time: float,
         shift: bool = False,
-        shift_pre_delay: float = 0.040,
-        shift_post_delay: float = 0.035,
+        shift_pre_delay: Optional[float] = None,
+        shift_post_delay: Optional[float] = None,
     ):
         """
         Emits a full press-release cycle with precise dwell duration and optional Shift modifier.
         """
         if shift:
+            pre_delay = shift_pre_delay if shift_pre_delay is not None else max(0.003, min(0.035, dwell_time * 0.40))
             self.key_down(e.KEY_LEFTSHIFT)
-            time.sleep(shift_pre_delay)
+            time.sleep(pre_delay)
 
         self.key_down(code)
         time.sleep(dwell_time)
         self.key_up(code)
 
         if shift:
-            time.sleep(shift_post_delay)
+            post_delay = shift_post_delay if shift_post_delay is not None else max(0.003, min(0.030, dwell_time * 0.30))
+            time.sleep(post_delay)
             self.key_up(e.KEY_LEFTSHIFT)
 
     def backspace(self, dwell_time: float = 0.045):

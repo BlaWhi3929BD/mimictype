@@ -25,6 +25,7 @@ class HumanizerEngine:
     """
     Transforms a clean string into a realistic stream of typing actions,
     injecting human typos, motor inertia, realization pauses, and Backspace corrections.
+    Dynamically scales all delays with target WPM.
     """
 
     def __init__(
@@ -34,6 +35,9 @@ class HumanizerEngine:
     ):
         self.config = config
         self.topology = topology or KeyboardTopology()
+        wpm = max(10, self.config.wpm)
+        self.char_period = 60.0 / (wpm * 5.0)
+        self.wpm_scale = min(1.0, (65.0 / wpm) ** 1.1)
 
     def generate_steps(self, text: str) -> Generator[TypingStep, None, None]:
         """
@@ -42,6 +46,10 @@ class HumanizerEngine:
         i = 0
         n = len(text)
         cfg_h = self.config.humanizer
+
+        # Dynamically scale Backspace dwell/flight and pauses to WPM
+        bs_dwell = max(0.006, min(cfg_h.backspace_dwell, self.char_period * 0.35))
+        bs_flight = max(0.006, min(cfg_h.backspace_flight, self.char_period * 0.45))
 
         while i < n:
             curr_char = text[i]
@@ -66,7 +74,6 @@ class HumanizerEngine:
             if is_transposition:
                 # Transposition: type text[i+1] then text[i], then realize and fix
                 next_char = text[i + 1]
-                # Type inverted characters
                 yield TypingStep(
                     action=ActionType.TYPE_CHAR,
                     char=next_char,
@@ -78,8 +85,8 @@ class HumanizerEngine:
                     description="typo_transpose_2",
                 )
 
-                # Realization pause
-                pause = random.uniform(*cfg_h.perception_delay)
+                # Realization pause (scaled by WPM)
+                pause = random.uniform(*cfg_h.perception_delay) * self.wpm_scale
                 yield TypingStep(
                     action=ActionType.PAUSE,
                     duration=pause,
@@ -90,15 +97,15 @@ class HumanizerEngine:
                 for _ in range(2):
                     yield TypingStep(
                         action=ActionType.BACKSPACE,
-                        duration=cfg_h.backspace_dwell,
+                        duration=bs_dwell,
                     )
                     yield TypingStep(
                         action=ActionType.PAUSE,
-                        duration=cfg_h.backspace_flight,
+                        duration=bs_flight,
                     )
 
                 # Recovery pause
-                rec_pause = random.uniform(*cfg_h.recovery_delay)
+                rec_pause = random.uniform(*cfg_h.recovery_delay) * self.wpm_scale
                 yield TypingStep(
                     action=ActionType.PAUSE,
                     duration=rec_pause,
@@ -148,8 +155,8 @@ class HumanizerEngine:
                     else:
                         break
 
-                # Realization pause
-                pause = random.uniform(*cfg_h.perception_delay)
+                # Realization pause (scaled by WPM)
+                pause = random.uniform(*cfg_h.perception_delay) * self.wpm_scale
                 yield TypingStep(
                     action=ActionType.PAUSE,
                     duration=pause,
@@ -161,15 +168,15 @@ class HumanizerEngine:
                 for _ in range(backspaces_needed):
                     yield TypingStep(
                         action=ActionType.BACKSPACE,
-                        duration=cfg_h.backspace_dwell,
+                        duration=bs_dwell,
                     )
                     yield TypingStep(
                         action=ActionType.PAUSE,
-                        duration=cfg_h.backspace_flight,
+                        duration=bs_flight,
                     )
 
                 # Recovery pause
-                rec_pause = random.uniform(*cfg_h.recovery_delay)
+                rec_pause = random.uniform(*cfg_h.recovery_delay) * self.wpm_scale
                 yield TypingStep(
                     action=ActionType.PAUSE,
                     duration=rec_pause,
@@ -183,11 +190,9 @@ class HumanizerEngine:
                     description="corrected_char",
                 )
 
-                # Note: Any typed inertia characters will be naturally typed in next iterations!
                 i += 1
                 continue
 
             else:
-                # Fallback if no adjacent keys found (e.g. rare symbol)
                 yield TypingStep(action=ActionType.TYPE_CHAR, char=curr_char)
                 i += 1
