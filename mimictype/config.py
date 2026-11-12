@@ -148,3 +148,44 @@ class MimicConfig:
             if layout_data
             else LayoutConfig(),
         )
+
+    def apply_preset(self, preset: str):
+        """Applies a named profile: 'natural', 'fast', 'careful', or 'instant'."""
+        name = preset.lower()
+        if name == "fast":
+            self.wpm = 100
+            self.humanizer.enabled = True
+            self.humanizer.error_rate = 0.008
+            self.dwell.mu = 4.05  # ~57 ms
+            self.pauses.sentence_boundary = (0.20, 0.40)
+            self.pauses.clause_boundary = (0.10, 0.20)
+            self.pauses.newline = (0.25, 0.50)
+            self.pauses.code_block = (0.15, 0.30)
+        elif name == "careful":
+            self.wpm = 45
+            self.humanizer.enabled = True
+            self.humanizer.error_rate = 0.03
+            self.dwell.mu = 4.45  # ~85 ms
+            self.pauses.sentence_boundary = (0.50, 1.10)
+            self.pauses.clause_boundary = (0.25, 0.55)
+            self.pauses.newline = (0.60, 1.60)
+            self.pauses.code_block = (0.45, 0.85)
+        elif name == "instant":
+            self.wpm = 300
+            self.humanizer.enabled = False
+            self.dwell.mu = 3.20  # ~24 ms
+            self.dwell.min_seconds = 0.015
+            self.dwell.max_seconds = 0.040
+            self.pauses.sentence_boundary = (0.0, 0.0)
+            self.pauses.clause_boundary = (0.0, 0.0)
+            self.pauses.newline = (0.0, 0.0)
+            self.pauses.code_block = (0.0, 0.0)
+        elif name == "natural":
+            # Default calibrated settings
+            self.wpm = 65
+            self.humanizer.enabled = True
+            self.humanizer.error_rate = 0.02
+            self.dwell.mu = 4.31
+            self.dwell.min_seconds = 0.045
+            self.dwell.max_seconds = 0.145
+

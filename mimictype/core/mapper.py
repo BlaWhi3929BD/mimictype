@@ -22,7 +22,7 @@ class LayoutMapper:
     def _build_tables(self):
         # 1. Base US Layout
         # Digits & symbols on number row
-        num_row = [
+        num_row_us = [
             ("`", "~", e.KEY_GRAVE),
             ("1", "!", e.KEY_1),
             ("2", "@", e.KEY_2),
@@ -37,12 +37,12 @@ class LayoutMapper:
             ("-", "_", e.KEY_MINUS),
             ("=", "+", e.KEY_EQUAL),
         ]
-        for unshifted, shifted, code in num_row:
+        for unshifted, shifted, code in num_row_us:
             self._map_us[unshifted] = KeyBinding(code, shift=False, layout="us")
             self._map_us[shifted] = KeyBinding(code, shift=True, layout="us")
 
         # Alphabet US
-        letters = [
+        letters_us = [
             ("q", e.KEY_Q),
             ("w", e.KEY_W),
             ("e", e.KEY_E),
@@ -70,7 +70,7 @@ class LayoutMapper:
             ("n", e.KEY_N),
             ("m", e.KEY_M),
         ]
-        for char, code in letters:
+        for char, code in letters_us:
             self._map_us[char] = KeyBinding(code, shift=False, layout="us")
             self._map_us[char.upper()] = KeyBinding(
                 code, shift=True, layout="us"
@@ -143,7 +143,25 @@ class LayoutMapper:
                 code, shift=True, layout="ru"
             )
 
-        # Russian punctuation
+        # Digits in Russian layout (same keys as US unshifted)
+        ru_digits = [
+            ("1", e.KEY_1),
+            ("2", e.KEY_2),
+            ("3", e.KEY_3),
+            ("4", e.KEY_4),
+            ("5", e.KEY_5),
+            ("6", e.KEY_6),
+            ("7", e.KEY_7),
+            ("8", e.KEY_8),
+            ("9", e.KEY_9),
+            ("0", e.KEY_0),
+            ("-", e.KEY_MINUS),
+            ("=", e.KEY_EQUAL),
+        ]
+        for char, code in ru_digits:
+            self._map_ru[char] = KeyBinding(code, shift=False, layout="ru")
+
+        # Russian punctuation & symbols
         punct_ru = [
             (".", e.KEY_SLASH, False),
             (",", e.KEY_SLASH, True),
@@ -157,9 +175,7 @@ class LayoutMapper:
             ("*", e.KEY_8, True),
             ("(", e.KEY_9, True),
             (")", e.KEY_0, True),
-            ("-", e.KEY_MINUS, False),
             ("_", e.KEY_MINUS, True),
-            ("=", e.KEY_EQUAL, False),
             ("+", e.KEY_EQUAL, True),
             ("\\", e.KEY_BACKSLASH, False),
             ("/", e.KEY_BACKSLASH, True),
@@ -188,6 +204,10 @@ class LayoutMapper:
 
         # Unknown symbol
         return None
+
+    def is_supported(self, char: str) -> bool:
+        """Returns True if the character can be typed in at least one layout."""
+        return (char in self._map_us) or (char in self._map_ru)
 
     def set_current_layout(self, layout: str):
         self.current_layout = layout
