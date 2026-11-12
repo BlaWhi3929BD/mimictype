@@ -61,12 +61,32 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 ## 3. Способы установки
 
-### Из исходников (в режиме разработки):
+На современных дистрибутивах Linux (Arch, Ubuntu 24.04+, Debian 12+) стандарт **PEP 668** запрещает прямую установку через `pip install` без виртуального окружения.
+
+### Автоматическая установка в изолированный venv (рекомендуется):
+В корне репозитория подготовлен скрипт `install.sh`:
 ```bash
 git clone https://github.com/BlaWhi3929BD/mimictype.git
 cd mimictype
-pip install --user --break-system-packages -e .
+./install.sh
 ```
+
+Скрипт выполняет:
+1. Создание виртуального окружения `.venv/`.
+2. Установку зависимостей `evdev` и `pyyaml` внутри окружения.
+3. Установку самого пакета в режиме разработки (`pip install -e .`).
+4. Создание симлинка в `~/.local/bin/mimictype` на `.venv/bin/mimictype`, благодаря чему команда `mimictype` доступна в любом терминале без ручной активации окружения.
+
+### Ручная установка через virtualenv:
+Если вы предпочитаете управлять окружениями вручную:
+```bash
+git clone https://github.com/BlaWhi3929BD/mimictype.git
+cd mimictype
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+После активации venv команда `mimictype` доступна напрямую.
 
 Проверка установки:
 ```bash

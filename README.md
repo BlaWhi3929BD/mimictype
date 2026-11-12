@@ -52,9 +52,24 @@
 - `wl-clipboard` (для Wayland) или `xclip` (для X11)
 
 ### Установка
+
+На современных дистрибутивах Linux (Arch, Ubuntu 24.04+, Debian 12+) действует стандарт **PEP 668**, запрещающий прямой вызов `pip install` в системное окружение. Для этого предусмотрен автоматический скрипт установки в изолированный `venv`:
+
 ```bash
 git clone https://github.com/BlaWhi3929BD/mimictype.git
 cd mimictype
+./install.sh
+```
+
+Скрипт `./install.sh`:
+1. Автоматически создаёт изолированное виртуальное окружение `.venv/`.
+2. Устанавливает все зависимости (`evdev`, `pyyaml`).
+3. Создаёт симлинк в `~/.local/bin/mimictype`, делая команду `mimictype` доступной глобально в терминале без необходимости ручной активации venv.
+
+#### Ручная установка через venv (альтернатива):
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e .
 ```
 
