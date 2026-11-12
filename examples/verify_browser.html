@@ -1,197 +1,897 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>MimicType DOM Event & Keystroke Dynamics Verifier</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MimicType — Верификатор аппаратного ввода и Keystroke Dynamics</title>
   <style>
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      margin: 24px;
-      background: #0f172a;
-      color: #f8fafc;
+    :root {
+      --bg-primary: #090d16;
+      --bg-card: #131b2e;
+      --bg-card-sub: #1a243c;
+      --border-color: #23314f;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --success: #4ade80;
+      --danger: #f87171;
+      --warning: #fbbf24;
+      --purple: #c084fc;
     }
-    h1 { margin-bottom: 8px; color: #38bdf8; }
-    p { color: #94a3b8; font-size: 14px; }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      padding: 24px;
+      line-height: 1.5;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border-color);
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .title-group h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .title-group p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .controls-bar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    button, select {
+      background: var(--bg-card);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    button:hover, select:hover {
+      background: var(--bg-card-sub);
+      border-color: var(--accent);
+    }
+
+    button.primary {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: #fff;
+    }
+    button.primary:hover {
+      background: #0369a1;
+    }
+
+    button.danger:hover {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    /* Stats Grid */
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      padding: 14px 16px;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .stat-val {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-val.trusted { color: var(--success); }
+    .stat-val.untrusted { color: var(--danger); }
+
+    .stat-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    /* Samples / Presets Bar */
+    .samples-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .samples-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .sample-btn {
+      font-size: 12px;
+      padding: 5px 10px;
+      background: var(--bg-card-sub);
+    }
+
+    /* Main Input Area */
+    .input-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 16px;
       margin-bottom: 20px;
     }
-    .stat-card {
-      background: #1e293b;
-      padding: 16px;
+
+    @media (max-width: 900px) {
+      .input-section { grid-template-columns: 1fr; }
+    }
+
+    .input-box-wrapper, .stream-box-wrapper {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
       border-radius: 8px;
-      border: 1px solid #334155;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
-    .stat-val {
-      font-size: 28px;
-      font-weight: bold;
-      color: #38bdf8;
+
+    .box-header {
+      padding: 10px 16px;
+      background: var(--bg-card-sub);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
     }
-    .stat-val.trusted { color: #4ade80; }
-    .stat-val.untrusted { color: #f87171; }
-    .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; margin-top: 4px; }
-    
-    #testInput {
+
+    #mainInput {
       width: 100%;
-      box-sizing: border-box;
+      height: 240px;
       padding: 16px;
-      font-size: 18px;
-      background: #1e293b;
-      border: 2px solid #38bdf8;
-      border-radius: 8px;
-      color: #f8fafc;
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 15px;
+      line-height: 1.6;
+      resize: vertical;
       outline: none;
-      margin-bottom: 20px;
+      tab-size: 4;
     }
-    #testInput:focus {
-      border-color: #60a5fa;
-      box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+
+    #mainInput:focus {
+      background: rgba(56, 189, 248, 0.02);
     }
-    
+
+    .live-stream-view {
+      height: 240px;
+      padding: 16px;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 14px;
+      line-height: 1.6;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      background: #0b1120;
+    }
+
+    .del-char {
+      background: rgba(248, 113, 113, 0.25);
+      color: var(--danger);
+      text-decoration: line-through;
+      border-radius: 2px;
+      padding: 0 1px;
+    }
+
+    .whitespace-char {
+      color: #475569;
+    }
+
+    /* Logs & Events Section */
+    .events-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .filter-bar {
+      padding: 12px 16px;
+      background: var(--bg-card-sub);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .filter-pills {
+      display: flex;
+      gap: 6px;
+    }
+
+    .pill {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      color: var(--text-muted);
+    }
+
+    .pill.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #0f172a;
+      font-weight: 600;
+    }
+
+    .search-input {
+      padding: 6px 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-main);
+      font-size: 12px;
+      outline: none;
+      width: 220px;
+    }
+
+    .search-input:focus { border-color: var(--accent); }
+
+    .table-container {
+      max-height: 380px;
+      overflow-y: auto;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
-      background: #1e293b;
-      border-radius: 8px;
-      overflow: hidden;
-      font-size: 13px;
+      font-size: 12px;
+      font-family: 'JetBrains Mono', monospace;
     }
+
     th, td {
-      padding: 10px 14px;
+      padding: 8px 14px;
       text-align: left;
-      border-bottom: 1px solid #334155;
+      border-bottom: 1px solid var(--border-color);
     }
-    th { background: #0b1329; color: #94a3b8; font-weight: 600; }
+
+    th {
+      background: #0d1527;
+      color: var(--text-muted);
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    tr:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .keycap {
+      display: inline-block;
+      padding: 2px 6px;
+      background: var(--bg-card-sub);
+      border: 1px solid #334155;
+      border-radius: 4px;
+      font-weight: 600;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.4);
+    }
+
     .badge {
       display: inline-block;
-      padding: 2px 8px;
+      padding: 2px 6px;
       border-radius: 4px;
-      font-size: 11px;
-      font-weight: 600;
+      font-size: 10px;
+      font-weight: 700;
     }
-    .badge-true { background: rgba(74, 222, 128, 0.15); color: #4ade80; border: 1px solid #4ade80; }
-    .badge-false { background: rgba(248, 113, 113, 0.15); color: #f87171; border: 1px solid #f87171; }
+    .badge-true { background: rgba(74, 222, 128, 0.15); color: var(--success); border: 1px solid rgba(74, 222, 128, 0.4); }
+    .badge-false { background: rgba(248, 113, 113, 0.15); color: var(--danger); border: 1px solid rgba(248, 113, 113, 0.4); }
+    .badge-down { color: var(--accent); }
+    .badge-up { color: var(--text-muted); }
+
+    .modifier-tag {
+      font-size: 10px;
+      color: var(--purple);
+      margin-right: 4px;
+    }
   </style>
 </head>
 <body>
-  <h1>MimicType Verification Console</h1>
-  <p>Focus the input box below and trigger <code>mimictype</code> to inspect incoming kernel hardware events.</p>
 
+  <header>
+    <div class="title-group">
+      <h1>MimicType Verification Console v2.0</h1>
+      <p>Комплексная верификация аппаратного ввода ядра Linux (uinput / evdev), флага isTrusted и Keystroke Dynamics</p>
+    </div>
+    <div class="controls-bar">
+      <button id="toggleCaptureBtn" class="primary">⏸ Пауза захвата</button>
+      <button id="clearAllBtn" class="danger">🗑 Очистить всё</button>
+      <button id="exportJsonBtn">📥 Экспорт JSON</button>
+      <select id="logLimitSelect" title="Лимит строк в таблице">
+        <option value="100">100 событий</option>
+        <option value="300" selected>300 событий</option>
+        <option value="1000">1000 событий</option>
+        <option value="999999">Все события</option>
+      </select>
+    </div>
+  </header>
+
+  <!-- Metric Summary Cards -->
   <div class="stats-grid">
     <div class="stat-card">
       <div id="trustedRate" class="stat-val trusted">100%</div>
-      <div class="stat-label">isTrusted Ratio</div>
+      <div id="trustedCountSub" class="stat-sub">0 / 0 нативных</div>
+      <div class="stat-label">event.isTrusted</div>
+    </div>
+    <div class="stat-card">
+      <div id="liveWpm" class="stat-val">0</div>
+      <div id="wpmSub" class="stat-sub">Пик: 0 WPM</div>
+      <div class="stat-label">Скорость (WPM)</div>
     </div>
     <div class="stat-card">
       <div id="avgDwell" class="stat-val">0 ms</div>
-      <div class="stat-label">Avg Dwell Time</div>
+      <div id="dwellRangeSub" class="stat-sub">Min: - | Max: -</div>
+      <div class="stat-label">Dwell Time (удержание)</div>
     </div>
     <div class="stat-card">
       <div id="avgFlight" class="stat-val">0 ms</div>
-      <div class="stat-label">Avg Flight Time</div>
+      <div id="flightRangeSub" class="stat-sub">Min: - | Max: -</div>
+      <div class="stat-label">Flight Time (переход)</div>
     </div>
     <div class="stat-card">
-      <div id="keyCount" class="stat-val">0</div>
-      <div class="stat-label">Keystrokes Captured</div>
+      <div id="totalKeystrokes" class="stat-val">0</div>
+      <div id="textMetricsSub" class="stat-sub">0 симв | 0 сл | 0 строк</div>
+      <div class="stat-label">Захвачено нажатий</div>
+    </div>
+    <div class="stat-card">
+      <div id="typoCorrections" class="stat-val" style="color: var(--warning);">0</div>
+      <div id="backspacesSub" class="stat-sub">0 Backspaces</div>
+      <div class="stat-label">Симуляции опечаток</div>
     </div>
   </div>
 
-  <input id="testInput" type="text" placeholder="Click here to focus and test typing..." autofocus autocomplete="off" />
+  <!-- Test Samples to Copy -->
+  <div class="samples-card">
+    <span class="samples-label">📋 Тестовые тексты в буфер для mimictype:</span>
+    <button class="sample-btn" onclick="copySample('ru_lit')">📖 Русский текст (с пунктуацией)</button>
+    <button class="sample-btn" onclick="copySample('py_code')">🐍 Код Python (отступы и синтаксис)</button>
+    <button class="sample-btn" onclick="copySample('en_mixed')">🌐 Mixed US/RU + Символы</button>
+    <button class="sample-btn" onclick="copySample('symbols')">⚡ Спецсимволы и цифры</button>
+    <span id="copyNotice" style="font-size: 11px; color: var(--success); display: none;">Скопировано в буфер!</span>
+  </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Type</th>
-        <th>Key</th>
-        <th>Code</th>
-        <th>isTrusted</th>
-        <th>Dwell</th>
-        <th>Flight</th>
-        <th>Timestamp</th>
-      </tr>
-    </thead>
-    <tbody id="logBody"></tbody>
-  </table>
+  <!-- Main Multi-line Input & Typo Stream Visualizer -->
+  <div class="input-section">
+    <!-- Active Input Box -->
+    <div class="input-box-wrapper">
+      <div class="box-header">
+        <span>ПОЛНОРАЗМЕРНОЕ ПОЛЕ ВВОДА (TEXTAREA)</span>
+        <span id="cursorPosInfo">Строка 1, Символ 0</span>
+      </div>
+      <textarea
+        id="mainInput"
+        placeholder="Кликните сюда для фокуса. Затем запустите mimictype или нажмите глобальный хоткей (Ctrl+Alt+V)..."
+        autofocus
+        spellcheck="false"
+      ></textarea>
+    </div>
+
+    <!-- Live Typo & Inertia Stream View -->
+    <div class="stream-box-wrapper">
+      <div class="box-header">
+        <span>ЖИВОЙ ПОТОК ВВОДА & ИСПРАВЛЕНИЙ (HUMANIZER STREAM)</span>
+        <span id="streamStats">0 опечаток зафиксировано</span>
+      </div>
+      <div id="streamView" class="live-stream-view"></div>
+    </div>
+  </div>
+
+  <!-- Events Log Table -->
+  <div class="events-section">
+    <div class="filter-bar">
+      <div class="filter-pills">
+        <div class="pill active" data-filter="all">Все события</div>
+        <div class="pill" data-filter="keydown">Только Keydown</div>
+        <div class="pill" data-filter="keyup">Только Keyup</div>
+        <div class="pill" data-filter="backspace">Backspaces</div>
+        <div class="pill" data-filter="untrusted">Недоверенные (false)</div>
+      </div>
+      <input type="text" id="filterSearch" class="search-input" placeholder="Поиск по клавише / коду..." />
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Событие</th>
+            <th>Символ (key)</th>
+            <th>Скан-код (code)</th>
+            <th>isTrusted</th>
+            <th>Модификаторы</th>
+            <th>Dwell (удержание)</th>
+            <th>Flight (переход)</th>
+            <th>Время (ms)</th>
+          </tr>
+        </thead>
+        <tbody id="logBody"></tbody>
+      </table>
+    </div>
+  </div>
 
   <script>
-    const input = document.getElementById('testInput');
+    // Sample Test Texts
+    const SAMPLES = {
+      ru_lit: `Естественная динамика набора текста базируется на логнормальном распределении интервалов. Человек делает паузы перед знаками препинания, а также допускает редкие случайные опечатки, которые тут же исправляет! Проверь, как работает алгоритм Backspace.`,
+      py_code: `def calculate_dynamics(dwell_times: list[float]) -> dict:
+    # Вычисление среднего времени удержания
+    if not dwell_times:
+        return {"avg": 0.0, "status": "empty"}
+    
+    total = sum(dwell_times)
+    return {
+        "avg": total / len(dwell_times),
+        "count": len(dwell_times)
+    }`,
+      en_mixed: `Architecture test: проверяем бесшовное переключение раскладок US and RU!
+Special tokens: { "user_id": 42, "status": "SUCCESS", "ratio": 99.8% };
+Проверка завершена успешно.`,
+      symbols: `!@#$%^&*()_+ 1234567890 -= ~\` [] {} ;':",.<>/? \\| №;%:?*`
+    };
+
+    function copySample(key) {
+      if (SAMPLES[key]) {
+        navigator.clipboard.writeText(SAMPLES[key]).then(() => {
+          const notice = document.getElementById('copyNotice');
+          notice.style.display = 'inline';
+          setTimeout(() => { notice.style.display = 'none'; }, 2000);
+        });
+      }
+    }
+
+    // Elements
+    const mainInput = document.getElementById('mainInput');
+    const streamView = document.getElementById('streamView');
     const logBody = document.getElementById('logBody');
     const trustedRateEl = document.getElementById('trustedRate');
+    const trustedCountSub = document.getElementById('trustedCountSub');
+    const liveWpmEl = document.getElementById('liveWpm');
+    const wpmSub = document.getElementById('wpmSub');
     const avgDwellEl = document.getElementById('avgDwell');
+    const dwellRangeSub = document.getElementById('dwellRangeSub');
     const avgFlightEl = document.getElementById('avgFlight');
-    const keyCountEl = document.getElementById('keyCount');
+    const flightRangeSub = document.getElementById('flightRangeSub');
+    const totalKeystrokesEl = document.getElementById('totalKeystrokes');
+    const textMetricsSub = document.getElementById('textMetricsSub');
+    const typoCorrectionsEl = document.getElementById('typoCorrections');
+    const backspacesSub = document.getElementById('backspacesSub');
+    const streamStats = document.getElementById('streamStats');
+    const cursorPosInfo = document.getElementById('cursorPosInfo');
+    const filterSearch = document.getElementById('filterSearch');
+    const toggleCaptureBtn = document.getElementById('toggleCaptureBtn');
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    const exportJsonBtn = document.getElementById('exportJsonBtn');
+    const logLimitSelect = document.getElementById('logLimitSelect');
 
+    // State
+    let isCapturing = true;
+    let currentFilter = 'all';
+    let searchQuery = '';
+    let eventCounter = 0;
+    let allEvents = [];
     let pressTimes = {};
     let lastKeyUpTime = null;
     let dwellTimes = [];
     let flightTimes = [];
-    let trustedCount = 0;
-    let totalKeys = 0;
+    let trustedEvents = 0;
+    let totalEvents = 0;
+    let backspaceCount = 0;
+    let detectedTypoSequences = 0;
+    let typingStartTime = null;
+    let peakWpm = 0;
 
-    input.addEventListener('keydown', (e) => {
+    // Handle Tab key inside textarea so focus is not lost
+    mainInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = mainInput.selectionStart;
+        const end = mainInput.selectionEnd;
+        mainInput.value = mainInput.value.substring(0, start) + "    " + mainInput.value.substring(end);
+        mainInput.selectionStart = mainInput.selectionEnd = start + 4;
+        updateTextMetrics();
+      }
+    });
+
+    // Update cursor position info
+    mainInput.addEventListener('keyup', updateCursorInfo);
+    mainInput.addEventListener('click', updateCursorInfo);
+    function updateCursorInfo() {
+      const pos = mainInput.selectionStart;
+      const lines = mainInput.value.substring(0, pos).split("\n");
+      const currentLine = lines.length;
+      const currentCol = lines[lines.length - 1].length;
+      cursorPosInfo.textContent = `Строка ${currentLine}, Символ ${currentCol}`;
+    }
+
+    // Toggle Capture
+    toggleCaptureBtn.addEventListener('click', () => {
+      isCapturing = !isCapturing;
+      if (isCapturing) {
+        toggleCaptureBtn.textContent = '⏸ Пауза захвата';
+        toggleCaptureBtn.className = 'primary';
+      } else {
+        toggleCaptureBtn.textContent = '▶ Возобновить';
+        toggleCaptureBtn.className = '';
+      }
+    });
+
+    // Clear All
+    clearAllBtn.addEventListener('click', () => {
+      mainInput.value = '';
+      streamView.innerHTML = '';
+      logBody.innerHTML = '';
+      allEvents = [];
+      pressTimes = {};
+      lastKeyUpTime = null;
+      dwellTimes = [];
+      flightTimes = [];
+      trustedEvents = 0;
+      totalEvents = 0;
+      backspaceCount = 0;
+      detectedTypoSequences = 0;
+      eventCounter = 0;
+      typingStartTime = null;
+      peakWpm = 0;
+      updateStats();
+      updateTextMetrics();
+      streamStats.textContent = '0 опечаток зафиксировано';
+    });
+
+    // Export JSON
+    exportJsonBtn.addEventListener('click', () => {
+      const exportData = {
+        exportedAt: new Date().toISOString(),
+        summary: {
+          totalEvents,
+          trustedEvents,
+          isTrustedRatio: totalEvents > 0 ? (trustedEvents / totalEvents) : 1.0,
+          avgDwellMs: dwellTimes.length > 0 ? (dwellTimes.reduce((a,b)=>a+b,0)/dwellTimes.length) : 0,
+          avgFlightMs: flightTimes.length > 0 ? (flightTimes.reduce((a,b)=>a+b,0)/flightTimes.length) : 0,
+          backspaces: backspaceCount,
+          inputTextLength: mainInput.value.length
+        },
+        inputText: mainInput.value,
+        events: allEvents
+      };
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `mimictype-events-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // Filtering Pills
+    document.querySelectorAll('.filter-pills .pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pills .pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        currentFilter = pill.dataset.filter;
+        renderFilteredTable();
+      });
+    });
+
+    filterSearch.addEventListener('input', (e) => {
+      searchQuery = e.target.value.toLowerCase().trim();
+      renderFilteredTable();
+    });
+
+    // Global Key Listener on Window & Input
+    window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', handleKeyUp, true);
+
+    function handleKeyDown(e) {
+      if (!isCapturing) return;
       const now = performance.now();
+      if (!typingStartTime) typingStartTime = now;
+
       if (!pressTimes[e.code]) {
         pressTimes[e.code] = now;
       }
-      let flight = lastKeyUpTime ? (now - lastKeyUpTime).toFixed(1) + ' ms' : '-';
-      if (lastKeyUpTime) flightTimes.push(now - lastKeyUpTime);
 
-      totalKeys++;
-      if (e.isTrusted) trustedCount++;
+      let flightMs = null;
+      if (lastKeyUpTime !== null) {
+        flightMs = now - lastKeyUpTime;
+        flightTimes.push(flightMs);
+      }
+
+      totalEvents++;
+      if (e.isTrusted) trustedEvents++;
+
+      if (e.code === 'Backspace') {
+        backspaceCount++;
+        handleStreamBackspace();
+      } else if (e.key && e.key.length === 1) {
+        handleStreamChar(e.key);
+      } else if (e.key === 'Enter') {
+        handleStreamChar('\n');
+      }
+
+      const eventRecord = {
+        id: ++eventCounter,
+        type: 'keydown',
+        key: e.key,
+        code: e.code,
+        isTrusted: e.isTrusted,
+        shift: e.shiftKey,
+        alt: e.altKey,
+        ctrl: e.ctrlKey,
+        meta: e.metaKey,
+        dwell: null,
+        flight: flightMs,
+        timestamp: now
+      };
+
+      allEvents.push(eventRecord);
+      appendTableRow(eventRecord);
       updateStats();
+      updateTextMetrics();
+    }
 
-      addLogRow('keydown', e.key, e.code, e.isTrusted, '-', flight, now.toFixed(0));
-    });
-
-    input.addEventListener('keyup', (e) => {
+    function handleKeyUp(e) {
+      if (!isCapturing) return;
       const now = performance.now();
-      let dwell = '-';
+
+      let dwellMs = null;
       if (pressTimes[e.code]) {
-        const d = now - pressTimes[e.code];
-        dwellTimes.push(d);
-        dwell = d.toFixed(1) + ' ms';
+        dwellMs = now - pressTimes[e.code];
+        dwellTimes.push(dwellMs);
         delete pressTimes[e.code];
       }
       lastKeyUpTime = now;
+
+      totalEvents++;
+      if (e.isTrusted) trustedEvents++;
+
+      const eventRecord = {
+        id: ++eventCounter,
+        type: 'keyup',
+        key: e.key,
+        code: e.code,
+        isTrusted: e.isTrusted,
+        shift: e.shiftKey,
+        alt: e.altKey,
+        ctrl: e.ctrlKey,
+        meta: e.metaKey,
+        dwell: dwellMs,
+        flight: null,
+        timestamp: now
+      };
+
+      allEvents.push(eventRecord);
+      appendTableRow(eventRecord);
       updateStats();
-
-      addLogRow('keyup', e.key, e.code, e.isTrusted, dwell, '-', now.toFixed(0));
-    });
-
-    function updateStats() {
-      const ratio = totalKeys > 0 ? ((trustedCount / totalKeys) * 100).toFixed(0) : 100;
-      trustedRateEl.textContent = ratio + '%';
-      trustedRateEl.className = 'stat-val ' + (ratio === '100' ? 'trusted' : 'untrusted');
-
-      if (dwellTimes.length > 0) {
-        const avgD = dwellTimes.reduce((a,b)=>a+b,0) / dwellTimes.length;
-        avgDwellEl.textContent = avgD.toFixed(0) + ' ms';
-      }
-      if (flightTimes.length > 0) {
-        const avgF = flightTimes.reduce((a,b)=>a+b,0) / flightTimes.length;
-        avgFlightEl.textContent = avgF.toFixed(0) + ' ms';
-      }
-      keyCountEl.textContent = totalKeys;
     }
 
-    function addLogRow(type, key, code, isTrusted, dwell, flight, ts) {
-      const tr = document.createElement('tr');
-      const badgeClass = isTrusted ? 'badge-true' : 'badge-false';
-      tr.innerHTML = `
-        <td>${type}</td>
-        <td><strong>${key === ' ' ? '[Space]' : key}</strong></td>
-        <td><code>${code}</code></td>
-        <td><span class="badge ${badgeClass}">${isTrusted}</span></td>
-        <td>${dwell}</td>
-        <td>${flight}</td>
-        <td>${ts}</td>
-      `;
+    // Live Stream Visualizer (Visualizes raw stream and Backspace deletions)
+    function handleStreamChar(char) {
+      const span = document.createElement('span');
+      if (char === '\n') {
+        span.textContent = '\n';
+      } else if (char === ' ') {
+        span.textContent = '·';
+        span.className = 'whitespace-char';
+      } else {
+        span.textContent = char;
+      }
+      streamView.appendChild(span);
+      streamView.scrollTop = streamView.scrollHeight;
+    }
+
+    function handleStreamBackspace() {
+      // Find last non-deleted character and mark it with strikethrough del
+      const children = Array.from(streamView.children);
+      for (let i = children.length - 1; i >= 0; i--) {
+        const el = children[i];
+        if (!el.classList.contains('del-char')) {
+          el.classList.add('del-char');
+          detectedTypoSequences++;
+          streamStats.textContent = `${detectedTypoSequences} правок зафиксировано`;
+          break;
+        }
+      }
+    }
+
+    // Realtime Statistics Calculations
+    function updateStats() {
+      // isTrusted Rate
+      const ratio = totalEvents > 0 ? (trustedEvents / totalEvents) * 100 : 100;
+      trustedRateEl.textContent = ratio.toFixed(1) + '%';
+      trustedRateEl.className = 'stat-val ' + (ratio >= 99.9 ? 'trusted' : 'untrusted');
+      trustedCountSub.textContent = `${trustedEvents} / ${totalEvents} нативных`;
+
+      // Dwell Time
+      if (dwellTimes.length > 0) {
+        const avgD = dwellTimes.reduce((a,b)=>a+b,0) / dwellTimes.length;
+        const minD = Math.min(...dwellTimes);
+        const maxD = Math.max(...dwellTimes);
+        avgDwellEl.textContent = avgD.toFixed(0) + ' ms';
+        dwellRangeSub.textContent = `Min: ${minD.toFixed(0)} | Max: ${maxD.toFixed(0)} ms`;
+      }
+
+      // Flight Time
+      if (flightTimes.length > 0) {
+        const avgF = flightTimes.reduce((a,b)=>a+b,0) / flightTimes.length;
+        const minF = Math.min(...flightTimes);
+        const maxF = Math.max(...flightTimes);
+        avgFlightEl.textContent = avgF.toFixed(0) + ' ms';
+        flightRangeSub.textContent = `Min: ${minF.toFixed(0)} | Max: ${maxF.toFixed(0)} ms`;
+      }
+
+      // WPM (Words per Minute)
+      if (typingStartTime && dwellTimes.length > 3) {
+        const elapsedMinutes = (performance.now() - typingStartTime) / 60000;
+        if (elapsedMinutes > 0.02) {
+          const wordsTyped = (dwellTimes.length / 5);
+          const currentWpm = Math.round(wordsTyped / elapsedMinutes);
+          liveWpmEl.textContent = currentWpm;
+          if (currentWpm > peakWpm && currentWpm < 300) peakWpm = currentWpm;
+          wpmSub.textContent = `Пик: ${peakWpm} WPM`;
+        }
+      }
+
+      // Keystroke Count & Corrections
+      totalKeystrokesEl.textContent = totalEvents;
+      typoCorrectionsEl.textContent = detectedTypoSequences;
+      backspacesSub.textContent = `${backspaceCount} Backspaces`;
+    }
+
+    function updateTextMetrics() {
+      const val = mainInput.value;
+      const chars = val.length;
+      const words = val.trim() ? val.trim().split(/\s+/).length : 0;
+      const lines = val ? val.split("\n").length : 0;
+      textMetricsSub.textContent = `${chars} симв | ${words} сл | ${lines} строк`;
+    }
+
+    // Table Rendering & Filtering
+    function matchesFilter(ev) {
+      if (currentFilter === 'keydown' && ev.type !== 'keydown') return false;
+      if (currentFilter === 'keyup' && ev.type !== 'keyup') return false;
+      if (currentFilter === 'backspace' && ev.code !== 'Backspace') return false;
+      if (currentFilter === 'untrusted' && ev.isTrusted) return false;
+
+      if (searchQuery) {
+        const keyMatch = (ev.key || '').toLowerCase().includes(searchQuery);
+        const codeMatch = (ev.code || '').toLowerCase().includes(searchQuery);
+        if (!keyMatch && !codeMatch) return false;
+      }
+      return true;
+    }
+
+    function appendTableRow(ev) {
+      if (!matchesFilter(ev)) return;
+      const tr = createRowElement(ev);
       logBody.insertBefore(tr, logBody.firstChild);
-      if (logBody.children.length > 50) {
+
+      const limit = parseInt(logLimitSelect.value, 10);
+      while (logBody.children.length > limit) {
         logBody.removeChild(logBody.lastChild);
       }
+    }
+
+    function renderFilteredTable() {
+      logBody.innerHTML = '';
+      const limit = parseInt(logLimitSelect.value, 10);
+      let count = 0;
+
+      for (let i = allEvents.length - 1; i >= 0; i--) {
+        const ev = allEvents[i];
+        if (matchesFilter(ev)) {
+          logBody.appendChild(createRowElement(ev));
+          count++;
+          if (count >= limit) break;
+        }
+      }
+    }
+
+    function createRowElement(ev) {
+      const tr = document.createElement('tr');
+      const badgeClass = ev.isTrusted ? 'badge-true' : 'badge-false';
+      const typeClass = ev.type === 'keydown' ? 'badge-down' : 'badge-up';
+
+      let keyDisplay = ev.key;
+      if (keyDisplay === ' ') keyDisplay = 'Space';
+      else if (keyDisplay === '\n') keyDisplay = 'Enter';
+      else if (keyDisplay === '\t') keyDisplay = 'Tab';
+
+      let mods = '';
+      if (ev.shift) mods += '<span class="modifier-tag">Shift</span>';
+      if (ev.ctrl) mods += '<span class="modifier-tag">Ctrl</span>';
+      if (ev.alt) mods += '<span class="modifier-tag">Alt</span>';
+      if (ev.meta) mods += '<span class="modifier-tag">Meta</span>';
+      if (!mods) mods = '-';
+
+      const dwellText = ev.dwell !== null ? `${ev.dwell.toFixed(1)} ms` : '-';
+      const flightText = ev.flight !== null ? `${ev.flight.toFixed(1)} ms` : '-';
+
+      tr.innerHTML = `
+        <td>${ev.id}</td>
+        <td><span class="${typeClass}"><strong>${ev.type}</strong></span></td>
+        <td><span class="keycap">${escapeHtml(keyDisplay)}</span></td>
+        <td><code>${ev.code}</code></td>
+        <td><span class="badge ${badgeClass}">${ev.isTrusted}</span></td>
+        <td>${mods}</td>
+        <td>${dwellText}</td>
+        <td>${flightText}</td>
+        <td>${ev.timestamp.toFixed(0)}</td>
+      `;
+      return tr;
+    }
+
+    function escapeHtml(str) {
+      return (str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
     }
   </script>
 </body>
