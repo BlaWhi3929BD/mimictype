@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 from mimictype.config import MimicConfig
 from mimictype.core.engine import TyperEngine
 
@@ -64,6 +65,49 @@ class TestTyperEngine(unittest.TestCase):
         success = engine.type_text("Long text to type", on_progress=on_progress)
         self.assertFalse(success)
         self.assertIn(("release_modifiers",), dummy_dev.events)
+
+    def test_peek_ahead_not_desynced_by_typos(self):
+        dummy_dev = DummyDevice()
+        config = MimicConfig(wpm=300)
+        config.humanizer.enabled = True
+        config.humanizer.error_rate = 1.0
+        config.humanizer.transposition_rate = 0.0
+        config.humanizer.inertia_range = (1, 1)
+        config.humanizer.perception_delay = (0.0, 0.0)
+        config.humanizer.recovery_delay = (0.0, 0.0)
+        config.humanizer.backspace_dwell = 0.0
+        config.humanizer.backspace_flight = 0.0
+
+        seen = []
+        engine = TyperEngine(config=config, device=dummy_dev)
+        with (
+            patch.object(
+                engine.dynamics,
+                "compute_cognitive_pause",
+                side_effect=lambda prev, curr, peek: seen.append((curr, peek)) or 0.0,
+            ),
+            patch("mimictype.core.engine.time.sleep"),
+        ):
+            self.assertTrue(engine.type_text("abc. def"))
+
+        dot_calls = [peek for ch, peek in seen if ch == "."]
+        self.assertEqual(dot_calls, [" def"])
+
+    def test_layout_refreshed_before_each_type_text(self):
+        dummy_dev = DummyDevice()
+        config = MimicConfig()
+        config.humanizer.enabled = False
+        config.layout.default_layout = "us"
+
+        with patch(
+            "mimictype.core.layout_detector.LayoutDetector.get_active_layout",
+            side_effect=["us", "ru"],
+        ):
+            engine = TyperEngine(config=config, device=dummy_dev)
+            with patch.object(engine, "switch_layout_to") as mock_switch:
+                engine.type_text("Привет")
+                mock_switch.assert_not_called()
+                self.assertEqual(engine.mapper.current_layout, "ru")
 
 
 if __name__ == "__main__":

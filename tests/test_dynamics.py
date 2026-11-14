@@ -1,3 +1,4 @@
+import math
 import unittest
 from mimictype.config import MimicConfig
 from mimictype.core.dynamics import DynamicsEngine
@@ -45,6 +46,42 @@ class TestDynamicsEngine(unittest.TestCase):
         pause_letter = self.dynamics.compute_cognitive_pause("a", "b")
         self.assertGreater(pause_dot, 0.1)
         self.assertEqual(pause_letter, 0.0)
+
+    def test_configured_dwell_is_honored(self):
+        config = MimicConfig(wpm=65)
+        config.dwell.mu = math.log(110.0)
+        config.dwell.min_seconds = 0.095
+        config.dwell.max_seconds = 0.125
+        dyn = DynamicsEngine(config)
+
+        self.assertAlmostEqual(dyn.dwell_mu, config.dwell.mu)
+        self.assertEqual(dyn.min_dwell, 0.095)
+        self.assertEqual(dyn.max_dwell, 0.125)
+        for _ in range(50):
+            dwell = dyn.compute_dwell_time("a")
+            self.assertGreaterEqual(dwell, 0.095)
+            self.assertLessEqual(dwell, 0.125)
+
+    def test_code_keyword_pause_triggers_once_at_word_start(self):
+        line = "    elif x:"
+        pauses = []
+        for idx, ch in enumerate(line[:8]):
+            prev = line[idx - 1] if idx > 0 else None
+            peek = line[idx + 1 :]
+            pauses.append(self.dynamics.compute_cognitive_pause(prev, ch, peek))
+
+        # Only index 4 ('e' in "elif ") should trigger the code_block pause
+        non_zero = [i for i, p in enumerate(pauses) if p > 0]
+        self.assertEqual(non_zero, [4])
+
+        # Substring match inside identifier ("motif ") must not pause
+        word = "motif "
+        for idx, ch in enumerate(word):
+            prev = word[idx - 1] if idx > 0 else None
+            self.assertEqual(
+                self.dynamics.compute_cognitive_pause(prev, ch, word[idx + 1 :]),
+                0.0,
+            )
 
 
 if __name__ == "__main__":

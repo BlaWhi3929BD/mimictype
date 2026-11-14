@@ -22,16 +22,27 @@ class DynamicsEngine:
         wpm = max(10, self.config.wpm)
         self.char_period = 60.0 / (wpm * 5.0)
 
-        # Division of character budget: ~38% dwell, ~62% flight
-        self.target_dwell = self.char_period * 0.38
-        self.base_flight = self.char_period * 0.62
+        cfg_dwell = self.config.dwell
+        cfg_median_dwell = math.exp(cfg_dwell.mu) / 1000.0
+        max_dwell_budget = self.char_period * 0.75
 
-        # Lognormal parameters centered on target dwell
-        target_dwell_ms = self.target_dwell * 1000.0
-        self.dwell_mu = math.log(max(1.0, target_dwell_ms))
-        self.dwell_sigma = self.config.dwell.sigma
-        self.min_dwell = max(0.004, self.target_dwell * 0.35)
-        self.max_dwell = max(self.min_dwell * 1.5, self.target_dwell * 1.85)
+        if cfg_median_dwell <= max_dwell_budget:
+            self.dwell_mu = cfg_dwell.mu
+            self.dwell_sigma = cfg_dwell.sigma
+            self.min_dwell = max(0.004, cfg_dwell.min_seconds)
+            self.max_dwell = max(self.min_dwell, cfg_dwell.max_seconds)
+            self.target_dwell = max(self.min_dwell, min(self.max_dwell, cfg_median_dwell))
+        else:
+            # Target speed is faster than configured dwell allows: scale proportionally
+            scaled_dwell = self.char_period * 0.38
+            scale_ratio = scaled_dwell / max(1e-6, cfg_median_dwell)
+            self.target_dwell = scaled_dwell
+            self.dwell_mu = math.log(max(1.0, scaled_dwell * 1000.0))
+            self.dwell_sigma = cfg_dwell.sigma
+            self.min_dwell = max(0.004, cfg_dwell.min_seconds * scale_ratio)
+            self.max_dwell = max(self.min_dwell * 1.5, cfg_dwell.max_seconds * scale_ratio)
+
+        self.base_flight = max(0.004, self.char_period - self.target_dwell)
 
         # Cognitive pause scaling: at high WPM, pauses scale down
         # At 65 WPM: scale = 1.0; at 333 WPM: scale ~ 0.17
@@ -137,10 +148,12 @@ class DynamicsEngine:
             "else:",
             "elif ",
         )
-        if any(
-            peek_ahead.startswith(kw) or (curr_char + peek_ahead).startswith(kw)
-            for kw in code_keywords
-        ):
-            return random.uniform(*pauses.code_block) * scale
+        is_word_start = prev_char is None or not (
+            prev_char.isalnum() or prev_char == "_"
+        )
+        if is_word_start:
+            token_prefix = curr_char + peek_ahead
+            if any(token_prefix.startswith(kw) for kw in code_keywords):
+                return random.uniform(*pauses.code_block) * scale
 
         return 0.0

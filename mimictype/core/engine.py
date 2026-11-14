@@ -23,8 +23,6 @@ class TyperEngine:
         self.config = config or MimicConfig.load()
         self.device = device or UInputDevice(self.config.device)
         self.topology = KeyboardTopology()
-        self.dynamics = DynamicsEngine(self.config, self.topology)
-        self.humanizer = HumanizerEngine(self.config, self.topology)
         self.layout_detector = LayoutDetector()
 
         # Initialize layout with active OS layout if detectable, else config default
@@ -33,6 +31,10 @@ class TyperEngine:
             or self.config.layout.default_layout
         )
         self.mapper = LayoutMapper(initial_layout)
+        self.dynamics = DynamicsEngine(self.config, self.topology)
+        self.humanizer = HumanizerEngine(
+            self.config, self.topology, mapper=self.mapper
+        )
         self._stop_requested = threading.Event()
         self._is_typing = threading.Event()
 
@@ -77,6 +79,11 @@ class TyperEngine:
 
         # Pre-normalize unicode symbols (quotes, dashes, non-breaking spaces)
         text = TextNormalizer.normalize(raw_text)
+
+        # Refresh active OS layout before typing so manual layout changes are tracked
+        active_layout = self.layout_detector.get_active_layout()
+        if active_layout:
+            self.mapper.set_current_layout(active_layout)
 
         # Synchronize layout before typing the first letter
         first_letter = next((c for c in text if c.isalpha()), None)
@@ -128,16 +135,12 @@ class TyperEngine:
                         self.switch_layout_to(binding.layout)
 
                     # 2. Context pause before key (punctuation, newlines, code blocks)
-                    peek_ahead = (
-                        text[min(idx + 1, len(text)) :]
-                        if idx + 1 < len(text)
-                        else ""
-                    )
-                    pause_before = self.dynamics.compute_cognitive_pause(
-                        prev_char, curr_char, peek_ahead
-                    )
-                    if pause_before > 0:
-                        time.sleep(pause_before)
+                    if not step.is_typo:
+                        pause_before = self.dynamics.compute_cognitive_pause(
+                            prev_char, curr_char, step.peek_ahead
+                        )
+                        if pause_before > 0:
+                            time.sleep(pause_before)
 
                     # 3. Flight time (gap before pressing)
                     flight_time = self.dynamics.compute_flight_time(
