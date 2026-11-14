@@ -28,6 +28,25 @@ class TestIPC(unittest.TestCase):
             self.assertEqual(resp.get("echo"), "TEST_CMD")
             self.assertIn("PING", received_commands)
             self.assertIn("TEST_CMD", received_commands)
+
+            # Test >64 KiB framed payload (128 KiB)
+            large_text = "x" * (128 * 1024)
+            resp_large = IPCClient.send("LARGE", {"text": large_text})
+            self.assertIsNotNone(resp_large)
+            self.assertEqual(resp_large.get("echo"), "LARGE")
+        finally:
+            server.stop()
+
+    def test_large_payload_echo_over_128kb(self):
+        def handler(req):
+            return {"len": len(req.get("text", "")), "sample": req.get("text", "")[-8:]}
+
+        server = IPCServer(handler=handler)
+        server.start()
+        try:
+            payload = "A" * 150_000 + "TAIL_END"
+            resp = IPCClient.send("TYPE", {"text": payload})
+            self.assertEqual(resp, {"len": len(payload), "sample": "TAIL_END"})
         finally:
             server.stop()
 

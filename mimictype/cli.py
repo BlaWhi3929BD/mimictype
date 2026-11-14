@@ -74,7 +74,11 @@ def run_direct_typing(args, cfg: MimicConfig):
                 on_emergency_stop=emergency_stop,
                 ignore_device_names=[cfg.device.name, "mimictype"],
             )
-            hotkey_listener.start()
+            if not hotkey_listener.start() and hotkey_listener.last_error:
+                print(
+                    f"[!] Warning: Physical ESC Kill Switch inactive ({hotkey_listener.last_error}). Use Ctrl+C to abort.",
+                    file=sys.stderr,
+                )
 
             # Signal handler for terminal Ctrl+C
             def handle_sigint(sig, frame):

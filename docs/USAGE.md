@@ -40,22 +40,23 @@ mimictype -> /dev/uinput -> ядро Linux -> libinput -> композитор (
 
 ## 2. Настройка окружения и прав доступа
 
-Для генерации событий виртуальной клавиатуры без `sudo` пользователю требуется доступ к `/dev/uinput`.
+Для генерации событий виртуальной клавиатуры без `sudo` пользователю требуется доступ на запись только к `/dev/uinput`.
 
-### Добавление в группу input:
-```bash
-sudo usermod -aG input $USER
-```
-
-### Настройка udev-правила (если требуется):
-Создайте файл `/etc/udev/rules.d/99-uinput.rules`:
+### Рекомендуемый способ — точечное udev-правило (без группы `input`):
+На современных дистрибутивах с `systemd-logind` (`Arch Linux`, `Fedora`, `Ubuntu`) создайте `/etc/udev/rules.d/99-mimictype-uinput.rules`:
 ```udev
-KERNEL=="uinput", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput"
+KERNEL=="uinput", SUBSYSTEM=="misc", TAG+="uaccess", OPTIONS+="static_node=uinput"
 ```
+(Если в вашей системе не используется `uaccess`, выделите отдельную группу `uinput`: `KERNEL=="uinput", SUBSYSTEM=="misc", MODE="0660", GROUP="uinput", OPTIONS+="static_node=uinput"` и добавьте пользователя только в `uinput`.)
+
 Примените правила:
 ```bash
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
+
+> **Примечание о безопасности группы `input`:** добавление пользователя в группу `input` открывает всем пользовательским процессам доступ на чтение всех устройств `/dev/input/event*` (включая перехват нажатий физических клавиатур / keylogging) и само по себе не гарантирует прав записи в `/dev/uinput`.
+> - Для запуска `mimictype` и управления демоном (`mimictype trigger`, `mimictype stop`, горячие клавиши DE/композитора Wayland) группа `input` **не нужна**.
+> - Группа `input` требуется только в том случае, если вы осознанно хотите использовать встроенный в `mimictype` пассивный `evdev`-слушатель для глобального хоткея (`Ctrl+Alt+V`) и физического Kill Switch (`ESC`). В прямом CLI-режиме прерывание по `Ctrl+C` работает всегда.
 
 ---
 

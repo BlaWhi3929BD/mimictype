@@ -51,15 +51,19 @@ if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     printf "    export PATH=\"\$HOME/.local/bin:\$PATH\"\n"
 fi
 
-# 6. Check /dev/uinput permissions
+# 6. Check /dev/uinput permissions (least privilege via udev rule)
 printf "${BLUE}==>${NC} Checking /dev/uinput permissions...\n"
 if [[ -w /dev/uinput ]]; then
     printf "${GREEN}✓ /dev/uinput is writable by current user (%s).${NC}\n" "$USER"
 else
     printf "${YELLOW}Notice:${NC} Current user does not have write access to /dev/uinput.\n"
-    printf "To use MimicType without sudo, add yourself to the 'input' group:\n"
-    printf "    sudo usermod -aG input \$USER\n"
-    printf "Then log out and log back in (or run 'newgrp input').\n"
+    printf "Recommended: grant least-privilege access ONLY to /dev/uinput via a udev rule:\n"
+    printf "    echo 'KERNEL==\"uinput\", SUBSYSTEM==\"misc\", TAG+=\"uaccess\", OPTIONS+=\"static_node=uinput\"' | sudo tee /etc/udev/rules.d/99-mimictype-uinput.rules\n"
+    printf "    sudo udevadm control --reload-rules && sudo udevadm trigger\n"
+    printf "\nSecurity note: avoid adding yourself to the 'input' group just for /dev/uinput,\n"
+    printf "as 'input' grants read access to all physical /dev/input/event* keystrokes (keylogging risk).\n"
+    printf "Use desktop compositor shortcuts -> 'mimictype trigger' / 'mimictype stop' instead,\n"
+    printf "or only opt into 'input' if you specifically want the built-in evdev hotkey/ESC listener.\n"
 fi
 
 printf "\n${GREEN}✓ MimicType installed successfully!${NC}\n"

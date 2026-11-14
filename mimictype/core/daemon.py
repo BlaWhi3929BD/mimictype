@@ -1,5 +1,4 @@
 import logging
-import os
 import shutil
 import subprocess
 import threading
@@ -15,16 +14,23 @@ logger = logging.getLogger("mimictype.daemon")
 
 
 def send_notification(summary: str, body: str = "", timeout_ms: int = 2000):
-    if shutil.which("notify-send"):
+    """Dispatches a desktop notification asynchronously so callers never block."""
+    if not shutil.which("notify-send"):
+        return
+
+    def _send():
         try:
             subprocess.run(
                 ["notify-send", "-a", "MimicType", "-t", str(timeout_ms), summary, body],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                timeout=2.0,
                 check=False,
             )
         except Exception:
             pass
+
+    threading.Thread(target=_send, daemon=True, name="mimictype-notify").start()
 
 
 class MimicDaemon:
@@ -57,10 +63,19 @@ class MimicDaemon:
             on_emergency_stop=self._on_emergency_stop,
             ignore_device_names=[self.config.device.name, "mimictype"],
         )
-        self.listener.start()
+        listener_ok = self.listener.start()
         self._running = True
 
-        send_notification("MimicType Daemon Active", f"Ready. Press {self.hotkey.upper()} to type.")
+        if listener_ok:
+            send_notification(
+                "MimicType Daemon Active",
+                f"Ready. Press {self.hotkey.upper()} to type.",
+            )
+        else:
+            send_notification(
+                "MimicType IPC Ready",
+                "Global hotkey/ESC disabled (/dev/input unreadable). Use DE shortcuts with 'mimictype trigger'.",
+            )
         logger.info("Daemon active and waiting for events.")
 
         try:
@@ -84,23 +99,35 @@ class MimicDaemon:
         logger.info("Daemon stopped.")
 
     def trigger_typing(self, text: Optional[str] = None):
-        """Asynchronously triggers typing in a background worker thread."""
-        target_text = text if text is not None else ClipboardReader.get_text()
-        if not target_text:
-            send_notification("MimicType", "Clipboard is empty!")
-            return
-
+        """Asynchronously resolves text and executes typing without blocking the caller thread."""
         def _worker():
             if not self._typing_lock.acquire(blocking=False):
                 send_notification("MimicType", "Typing already in progress!")
                 return
 
             try:
+                target_text = (
+                    text if text is not None else ClipboardReader.get_text()
+                )
+                if not target_text:
+                    msg = (
+                        "No text provided."
+                        if text is not None
+                        else "Clipboard is empty!"
+                    )
+                    send_notification("MimicType", msg)
+                    return
+
                 char_count = len(target_text)
-                send_notification("MimicType", f"Typing {char_count} characters... (ESC to abort)")
+                send_notification(
+                    "MimicType",
+                    f"Typing {char_count} characters... (ESC to abort)",
+                )
                 success = self.engine.type_text(target_text)
                 if success:
-                    send_notification("MimicType", "Typing completed successfully.")
+                    send_notification(
+                        "MimicType", "Typing completed successfully."
+                    )
                 else:
                     send_notification("MimicType", "Typing aborted by user.")
             except Exception as e:
@@ -129,6 +156,8 @@ class MimicDaemon:
                 "status": "typing" if (self.engine and self.engine.is_typing) else "idle",
                 "wpm": self.config.wpm,
                 "hotkey": self.hotkey,
+                "hotkey_active": bool(self.listener and self.listener.is_active),
+                "hotkey_error": self.listener.last_error if self.listener else None,
             }
         elif cmd == "TYPE":
             text = req.get("text")

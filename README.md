@@ -48,7 +48,8 @@
 - Linux (ядро с поддержкой модуля `uinput`)
 - Python 3.10+
 - `python-evdev`, `pyyaml`
-- Доступ к `/dev/uinput` (членство в группе `input` или соответствующее udev-правило)
+- Доступ на запись к `/dev/uinput` (рекомендуется точечное udev-правило `99-mimictype-uinput.rules` с `TAG+="uaccess"`, см. [docs/USAGE.md](docs/USAGE.md))
+- *(Опционально)* чтение `/dev/input/event*` требуется **только** для встроенного глобального хоткея / `ESC` Kill Switch; альтернатива без группы `input` — биндинг клавиш DE/Wayland на `mimictype trigger` и `mimictype stop` (или `Ctrl+C` в терминале)
 - `wl-clipboard` (для Wayland) или `xclip` (для X11)
 
 ### Установка

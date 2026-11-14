@@ -2,8 +2,12 @@ import json
 import os
 from pathlib import Path
 import socket
+import struct
 import threading
 from typing import Any, Callable, Dict, Optional
+
+
+MAX_IPC_FRAME_BYTES = 16 * 1024 * 1024  # 16 MiB safety cap
 
 
 def get_socket_path() -> Path:
@@ -14,6 +18,37 @@ def get_socket_path() -> Path:
         base = Path.home() / ".cache" / "mimictype"
     base.mkdir(parents=True, exist_ok=True)
     return base / "daemon.sock"
+
+
+def _recv_exact(sock: socket.socket, n: int) -> Optional[bytes]:
+    buf = bytearray()
+    while len(buf) < n:
+        chunk = sock.recv(n - len(buf))
+        if not chunk:
+            return None
+        buf.extend(chunk)
+    return bytes(buf)
+
+
+def _send_frame(sock: socket.socket, obj: Dict[str, Any]) -> None:
+    body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+    if len(body) > MAX_IPC_FRAME_BYTES:
+        raise ValueError(f"IPC payload exceeds {MAX_IPC_FRAME_BYTES} bytes")
+    header = struct.pack("!I", len(body))
+    sock.sendall(header + body)
+
+
+def _recv_frame(sock: socket.socket) -> Optional[Dict[str, Any]]:
+    header = _recv_exact(sock, 4)
+    if header is None:
+        return None
+    (length,) = struct.unpack("!I", header)
+    if length <= 0 or length > MAX_IPC_FRAME_BYTES:
+        raise ValueError(f"Invalid IPC frame length: {length}")
+    body = _recv_exact(sock, length)
+    if body is None:
+        return None
+    return json.loads(body.decode("utf-8"))
 
 
 class IPCServer:
@@ -37,6 +72,10 @@ class IPCServer:
 
         self._server_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self._server_sock.bind(str(self.socket_path))
+        try:
+            os.chmod(self.socket_path, 0o600)
+        except OSError:
+            pass
         self._server_sock.listen(5)
         self._server_sock.settimeout(0.5)
         self._running = True
@@ -57,16 +96,14 @@ class IPCServer:
 
             with conn:
                 try:
-                    data = conn.recv(65536)
-                    if data:
-                        req = json.loads(data.decode("utf-8"))
+                    conn.settimeout(2.0)
+                    req = _recv_frame(conn)
+                    if req is not None:
                         resp = self.handler(req)
-                        conn.sendall(json.dumps(resp).encode("utf-8"))
+                        _send_frame(conn, resp)
                 except Exception as e:
                     try:
-                        conn.sendall(
-                            json.dumps({"error": str(e)}).encode("utf-8")
-                        )
+                        _send_frame(conn, {"error": str(e)})
                     except Exception:
                         pass
 
@@ -100,21 +137,18 @@ class IPCClient:
             return None
 
         client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        client.settimeout(2.0)
+        client.settimeout(5.0)
         try:
             client.connect(str(sock_path))
-            msg = {"command": command}
+            msg: Dict[str, Any] = {"command": command}
             if payload:
                 msg.update(payload)
-            client.sendall(json.dumps(msg).encode("utf-8"))
-            raw = client.recv(65536)
-            if raw:
-                return json.loads(raw.decode("utf-8"))
+            _send_frame(client, msg)
+            return _recv_frame(client)
         except Exception:
             return None
         finally:
             client.close()
-        return None
 
     @classmethod
     def ping(cls) -> bool:
