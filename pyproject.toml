@@ -21,3 +21,6 @@ mimictype = "mimictype.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["mimictype*"]
+
+[tool.setuptools.package-data]
+mimictype = ["data/*.yaml"]

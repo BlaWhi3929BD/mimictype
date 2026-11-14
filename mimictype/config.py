@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from importlib import resources
 from pathlib import Path
 from typing import Dict, List, Tuple
 import yaml
@@ -70,21 +71,30 @@ class MimicConfig:
 
     @classmethod
     def load(cls, path: Path | str | None = None) -> "MimicConfig":
+        data = None
         if path is None:
-            default_path = (
-                Path(__file__).parent.parent / "config" / "default.yaml"
-            )
-            if default_path.exists():
-                path = default_path
-            else:
+            try:
+                resource = resources.files("mimictype.data").joinpath("default.yaml")
+                if resource.is_file():
+                    with resource.open("r", encoding="utf-8") as f:
+                        data = yaml.safe_load(f) or {}
+            except (FileNotFoundError, ModuleNotFoundError, OSError):
+                data = None
+
+            if data is None:
+                fallback_path = Path(__file__).parent / "data" / "default.yaml"
+                if fallback_path.exists():
+                    path = fallback_path
+                else:
+                    return cls()
+
+        if data is None:
+            path = Path(path)
+            if not path.exists():
                 return cls()
 
-        path = Path(path)
-        if not path.exists():
-            return cls()
-
-        with open(path, "r", encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
+            with open(path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
 
         dwell_data = data.get("dwell", {})
         flight_data = data.get("flight", {})
@@ -157,6 +167,8 @@ class MimicConfig:
             self.humanizer.enabled = True
             self.humanizer.error_rate = 0.008
             self.dwell.mu = 4.05  # ~57 ms
+            self.dwell.min_seconds = 0.030
+            self.dwell.max_seconds = 0.095
             self.pauses.sentence_boundary = (0.20, 0.40)
             self.pauses.clause_boundary = (0.10, 0.20)
             self.pauses.newline = (0.25, 0.50)
@@ -166,6 +178,8 @@ class MimicConfig:
             self.humanizer.enabled = True
             self.humanizer.error_rate = 0.03
             self.dwell.mu = 4.45  # ~85 ms
+            self.dwell.min_seconds = 0.050
+            self.dwell.max_seconds = 0.165
             self.pauses.sentence_boundary = (0.50, 1.10)
             self.pauses.clause_boundary = (0.25, 0.55)
             self.pauses.newline = (0.60, 1.60)
@@ -188,4 +202,5 @@ class MimicConfig:
             self.dwell.mu = 4.31
             self.dwell.min_seconds = 0.045
             self.dwell.max_seconds = 0.145
+            self.pauses = PausesConfig()
 
